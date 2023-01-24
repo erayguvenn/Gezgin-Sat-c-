@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+      integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+      crossorigin=""
+    />
+
+    <script
+      src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+      crossorigin=""
+    ></script>
+    <style>
+      #map {
+        height: 100vh;
+        width: 100vw;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      .save-route {
+        position: absolute;
+        bottom: 80px;
+        right: 30px;
+        z-index: 999;
+        border-radius: 5px;
+        border: none;
+        color: white;
+        background-color: green;
+        width: 120px;
+        height: 30px;
+        cursor: pointer;
+      }
+      .clear-route {
+        position: absolute;
+        bottom: 40px;
+        right: 30px;
+        z-index: 999;
+        border-radius: 5px;
+        border: none;
+        color: white;
+        background-color: red;
+        width: 120px;
+        height: 30px;
+        cursor: pointer;
+      }
+      .kordinatlar {
+        position: absolute;
+        top: 17%;
+        left: 30px;
+        z-index: 999;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        width: 200px;
+        height: 250px;
+        padding: 5px;
+        overflow: auto;
+      }
+      .uzakliklar {
+        position: absolute;
+        bottom: 10%;
+        left: 30px;
+        z-index: 999;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        width: 400px;
+        height: 250px;
+        padding: 5px;
+        overflow: auto;
+      }
+      .newRoute {
+        position: absolute;
+        top: 30px;
+        right: 30px;
+        z-index: 999;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        width: auto;
+        height: 25px;
+        padding: 10px;
+        overflow: auto;
+      }
+
+      th,
+      td {
+        padding: 5px;
+        text-align: left;
+      }
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 999;
+        padding-top: 100px;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgb(0, 0, 0);
+        background-color: rgba(0, 0, 0, 0.4);
+      }
+      .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 30%;
+      }
+
+      .close {
+        color: #aaaaaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+      }
+
+      .close:hover,
+      .close:focus {
+        color: #000;
+        text-decoration: none;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <button id="myBtn" class="save-route">Rota oluştur</button>
+    <button onclick="clearRoute()" class="clear-route">Haritayı Temizle</button>
+    <div class="kordinatlar">
+      <h2 style="margin: 10px; text-align: center">Kordinatlar</h2>
+      <div class="kordinat"></div>
+    </div>
+    <div class="uzakliklar">
+      <h2 style="margin: 10px; text-align: center">Uzaklıklar</h2>
+      <div>
+        <table style="width: 100%" class="matris" id="matris"></table>
+      </div>
+    </div>
+    <div class="newRoute"></div>
+
+    <div id="myModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <form style="text-align: center; margin-top: 15px">
+          <label for="iterasyon">İterasyon Sayısı:</label><br />
+          <input
+            type="text"
+            id="iterasyon"
+            name="iterasyon"
+            value="150"
+          /><br />
+          <label for="caprazlama">Çaprazlama Oran:</label><br />
+          <input
+            type="text"
+            id="caprazlama"
+            name="caprazlama"
+            value="0.03"
+          /><br />
+          <label for="mutasyon"> Mutasyon Oranı:</label><br />
+          <input type="text" id="mutasyon" name="lnammutasyone" value="0.01" />
+        </form>
+        <button class="baslat" style="float: right" onclick="createRoute()">
+          Başlat
+        </button>
+        <div style="margin-bottom: 20px"></div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/json2csv"></script>
+
+    <script>
+      // modalı açma kapatma işlemleri için gereken kodlar
+      var modal = document.getElementById("myModal");
+      //modalı açma butonu
+      var btn = document.getElementById("myBtn");
+      //modalı kapatma butonu
+      var span = document.getElementsByClassName("close")[0];
+      //modalı açma butonuna tıklandığında modal açılıyor
+      btn.onclick = function () {
+        modal.style.display = "block";
+      };
+      //modalı kapatma butonuna tıklandığında modal kapanıyor
+      span.onclick = function () {
+        modal.style.display = "none";
+      };
+      //modalın dışına tıklandığında modal kapanıyor
+      window.onclick = function (event) {
+        if (event.target == modal) {
+          modal.style.display = "none";
+        }
+      };
+
+      //kordinatları yazdırmak için gereken fonksiyon
+      function writeKordinat(kordinat) {
+        document.querySelector(".kordinat").innerHTML +=
+          kordinat + "<br>" + "<hr>";
+      }
+
+      var map = L.map("map").setView([0, 0], 2);
+      // balıkesir sınırlarına göre haritayı sınırlandırıyor ve sınırlandırılan alana göre zoom yapıyor
+      var southWest = L.latLng(39.5, 27.5),
+        northEast = L.latLng(40.5, 28.5),
+        bounds = L.latLngBounds(southWest, northEast);
+      map.fitBounds(bounds);
+      // haritayı açıyor
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      function selection() {
+        // github üzerinden sınırlandırılan alanın geojson dosyasını çekiyor
+        fetch(
+          "https://gist.githubusercontent.com/erayguvenn/fee061b7a400ac0c02598bc0d75d9155/raw/986ba1b3ae7b46886bb10d2b4e8d1735e5363b20/boundaries.json"
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            var geojson = L.geoJSON(data, {
+              style: function (feature) {
+                return { color: "red", weight: 2 };
+              },
+            }).addTo(map);
+          });
+
+        map.setZoom(8);
+      }
+
+      selection();
+      var markers = [];
+      // marker ekliyor
+      map.on("click", async function (e) {
+        if (markers.length < 20) {
+          // markırların özelliklerini belirliyor
+          var marker = L.circleMarker(e.latlng, {
+            color: "blue",
+            fillColor: "blue",
+            fillOpacity: 0.5,
+            radius: 10,
+          }).addTo(map);
+          marker.bindTooltip("" + (markers.length + 1), {
+            permanent: true,
+            direction: "top",
+          });
+
+          markers.push(e.latlng);
+          // marker ekledikten sonra kordinatları alıyor
+          const latitude = e.latlng.lat.toFixed(4);
+          const longitude = e.latlng.lng.toFixed(4);
+          // marker sayısını ve kordinatlarını yazdırıyor
+          writeKordinat(markers.length + ") " + latitude + " , " + longitude);
+          marker.on("click", function (e) {});
+        } else {
+          alert("En fazla 20 marker ekleyebilirsiniz!");
+        }
+      });
+
+      // csv dosyasını indiriyor
+      function downloadCsv(filename, csvData) {
+        const element = document.createElement("a");
+
+        element.setAttribute("href", `data:text/csv;charset=utf-8,${csvData}`);
+        element.setAttribute("download", filename);
+        element.style.display = "none";
+
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+      }
+
+      // seçilen marker sayısına göre rastgele bir rota oluşturuyor
+      async function getDistanceAndRoute(markers) {
+        const coordinates = [];
+        const distance = [];
+        // distance ve coordinates dizilerinin boyutlarını belirliyoruz
+        for (let i in markers) {
+          distance.push(Array.from({ length: markers.length }, () => 0));
+          coordinates.push([]);
+        }
+
+        const infos = [];
+        // distance ve coordinates dizilerinin içerisine değerler atıyoruz
+        for (let i = 0; i < markers.length; i++) {
+          for (let j = 0; j < markers.length; j++) {
+            if (i == j) continue;
+            // infos dizisine start ve end değerlerini atıyoruz
+            infos.push({
+              start: [markers[i].lng, markers[i].lat],
+              end: [markers[j].lng, markers[j].lat],
+              index: [i, j],
+            });
+          }
+        }
+        // infos dizisindeki değerleri for döngüsü ile tek tek alıyoruz
+        await Promise.all(
+          infos.map(async (info) => {
+            const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${info.start[0]},${info.start[1]};${info.end[0]},${info.end[1]}?overview=false&alternatives=true&steps=true&geometries=geojson`;
+            // fetch ile url den gelen değerleri alıyoruz
+            const response = await fetch(url);
+            // gelen değerleri json formatına çeviriyoruz
+            const data = await response.json();
+            // gelen değerlerden en kısa olanı seçiyoruz
+            const shortestRoute = data.routes.sort(
+              (a, b) => a.distance - b.distance
+            )[0];
+            // gelen değerlerden en kısa olanın steps değerlerini alıyoruz
+            const steps = shortestRoute.legs[0].steps;
+
+            const coords = [];
+            // steps değerlerinin içindeki kordinatları alıyoruz
+            steps.forEach((step) => {
+              coords.push(...step.geometry.coordinates);
+            });
+            // distance dizisine en kısa olan rota uzaklığını atıyoruz
+            distance[info.index[0]][info.index[1]] = shortestRoute.distance;
+            // coordinates dizisine en kısa olan rota kordinatlarını atıyoruz
+            coordinates[info.index[0]][info.index[1]] = coords;
+          })
+        );
+
+        return [distance, coordinates];
+      }
+      // mutasyon fonksiyonu route içindeki değerlerin yer değiştirmesini sağlıyor
+      function mutation(route, mutationRate) {
+        // route değerleri değiştiği için yeni bir route oluşturuluyor
+        const newRoute = [...route];
+        // route içindeki değerlerin yer değiştirmesi için for döngüsü kullanılıyor
+        for (let i = 0; i < route.length; i++) {
+          // mutationRate değerine göre değerlerin yer değiştirmesi oluyor
+          if (Math.random() < mutationRate && i != 0) {
+            const randomIndex = Math.floor(Math.random() * route.length);
+            const temp = newRoute[i];
+            // eğer random index 0 ise continue ile döngüye devam ediliyor çünkü ilk index değiştirilemez olmasını istiyoruz
+            if (randomIndex == 0) continue;
+            // değerlerin yer değiştirmesi
+            newRoute[i] = newRoute[randomIndex];
+            newRoute[randomIndex] = temp;
+          }
+        }
+        return newRoute;
+      }
+      // çaprazlama fonksiyonu ilk olarak random bir index belirleniyor ve route1 in ilk index kadarı newRoute e ekleniyor ve
+      // route2 nin içinde newRoute e eklenmemiş olan değerler newRoute e ekleniyor
+      function crossover(route1, route2) {
+        // random bir index belirleniyor
+        const randomIndex = Math.floor(Math.random() * route1.length);
+        const newRoute = [];
+        // eğer random index 0 ise route1 döndürülüyor
+        if (randomIndex == 0) return route1;
+        // route1 in ilk random index kadarı newRoute e ekleniyor
+        for (let i = 0; i < randomIndex; i++) {
+          newRoute[i] = route1[i];
+        }
+        // route2 nin içinde newRoute e eklenmemiş olan değerler newRoute e ekleniyor
+        for (let i = 0; i < route2.length; i++) {
+          if (!newRoute.includes(route2[i])) {
+            newRoute.push(route2[i]);
+          }
+        }
+        return newRoute;
+      }
+
+      // marker lar işaretlendikten sonra genetik algoritmaya göre en kısa rotayı bulayan fonksiyon
+      async function createRoute() {
+        // formdan gelen değerler
+        const iterasyon = document.getElementById("iterasyon").value;
+        const caprazlama = document.getElementById("caprazlama").value;
+        const mutasyon = document.getElementById("mutasyon").value;
+        // markerların en az 2 olması gerekidiğinden kontrol ediliyor
+        if (markers.length < 2) {
+          alert("En az 2 marker ekleyiniz!");
+          return;
+        }
+        // eğer daha önce bir rotaya tıklanmışsa rotayı silip yeni rotayı çiziyor
+        map.eachLayer(function (layer) {
+          if (layer instanceof L.Polyline) {
+            map.removeLayer(layer);
+          }
+        });
+        selection();
+        // matrisi temizliyor
+        document.querySelector(".matris").innerHTML = "";
+        // distance ve coordinates matrislerini getDistanceAndRoute fonksiyonu ile oluşturuyor ve değerlerini alıyor
+        const [distance, coordinates] = await getDistanceAndRoute(markers);
+        // randomRoute fonksiyonu ile ilk popülasyonu oluşturuyor
+        let population = randomRoute(markers.length, 100);
+        const mutationRate = mutasyon;
+        const tournamentSize = 10;
+        // belirlenen iterasyon sayısı kadar döngüye giriyor
+        for (let i = 0; i < iterasyon; i++) {
+          const newPopulation = [];
+          // yeni popülasyonu oluşturuyor
+          for (let j = 0; j < population.length; j++) {
+            // tournamentSelection fonksiyonu ile iki parent seçiyor
+            const parent1 = tournamentSelection(
+              population,
+              tournamentSize,
+              distance
+            );
+            const parent2 = tournamentSelection(
+              population,
+              tournamentSize,
+              distance
+            );
+            // belirlenen caprazlama oranına göre caprazlama veya mutasyon yapıyor
+            const randomCross = Math.random();
+            if (randomCross < caprazlama) {
+              newPopulation.push(mutation(parent1, mutationRate));
+            } else {
+              const child = crossover(parent1, parent2);
+              const mutatedChild = mutation(child, mutationRate);
+              newPopulation.push(mutatedChild);
+            }
+            // yeni popülasyonun ilk elemanının son elemanı ile aynı olması için kontrol ediyor
+            if (newPopulation[0].length <= distance.length + 1) {
+              newPopulation[j].push(newPopulation[j][0]);
+            }
+          }
+
+          population = newPopulation;
+        }
+        // distance matrisine ekrana yazdırıyor
+        const header = document.createElement("tr");
+        header.innerHTML = "<th> </th>";
+        for (let i = 0; i < distance.length; i++) {
+          header.innerHTML += "<th>" + (i + 1) + "</th>";
+        }
+        document.getElementById("matris").appendChild(header);
+        for (let i = 0; i < distance.length; i++) {
+          var item = document.createElement("tr");
+          for (let j = 0; j < distance.length; j++) {
+            if (j == 0) {
+              item.innerHTML = "<td>" + (i + 1) + "</td>";
+            }
+
+            item.innerHTML += "<td>" + distance[i][j] + "</td>";
+          }
+
+          document.getElementById("matris").appendChild(item);
+        }
+        //en kısa rota bulmak için kullanılan fonksiyon
+        const shortest = population.sort(
+          (a, b) =>
+            calculateDistance(a, distance) - calculateDistance(b, distance)
+        )[0];
+
+        const path = [];
+        //en kısa rotayı bir diziye ekleyip rotamızı polyline ile çiziyoruz
+        for (let i = 0; i < shortest.length - 1; i++) {
+          if (shortest[i] == shortest[i + 1]) continue;
+          path.push(...coordinates[shortest[i] - 1][shortest[i + 1] - 1]);
+        }
+        for (let i = 0; i < path.length - 1; i++) {
+          const [x1, y1] = path[i];
+          const [x2, y2] = path[i + 1];
+
+          L.polyline(
+            [
+              [y1, x1],
+              [y2, x2],
+            ],
+            { color: "red" }
+          ).addTo(map);
+        }
+        //rotamızı ekrana yazdırıyoruz
+        document.querySelector(".newRoute").innerHTML = "Rota => " + shortest;
+        console.log(shortest);
+        //downloadCsv("rota.csv", json2csv.parse(distance, { header: false }));
+      }
+      //random bir rota oluşturmak için kullanılan fonksiyon. Adet kadar random rota oluşturuyoruz ve dizi olarak döndürüyoruz
+      function randomRoute(markerCount, adet) {
+        const randomRoutes = [];
+        //adet kadar random bir rota oluşturuyoruz
+        for (let i = 0; i < adet; i++) {
+          const items = Array.from({ length: markerCount }, (_, i) => i + 1);
+          //random bir index oluşturuyoruz ve 0 ise ilk elemanı değiştirmemek için continue yapıyoruz
+          for (let j = 1; j < items.length; j++) {
+            const randomIndex = Math.floor(Math.random() * items.length);
+            if (randomIndex == 0) continue;
+            //random index e göre elemanları yer değiştiriyoruz
+            const temp = items[j];
+            items[j] = items[randomIndex];
+            items[randomIndex] = temp;
+          }
+          //oluşturulan random rota dizisini randomRoutes dizisine ekliyoruz
+          randomRoutes.push(items);
+        }
+
+        return randomRoutes;
+      }
+      //distance matrisini oluşturmak için kullanılan fonksiyon
+      function calculateDistance(route, distance) {
+        let totalDistance = 0;
+        //route dizisindeki elemanları distance matrisine göre topluyoruz
+        for (let i = 0; i < route.length - 1; i++) {
+          totalDistance += distance[route[i] - 1][route[i + 1] - 1];
+        }
+        return totalDistance;
+      }
+      //turnuva yönemine göre en iyi rota seçimi yapılıyor
+      function tournamentSelection(population, tournamentSize, distance) {
+        const tournament = [];
+        //tournament size kadar random bir sayı üretiyoruz
+        for (let i = 0; i < tournamentSize; i++) {
+          const randomIndex = Math.floor(Math.random() * population.length);
+          //eğer random index 0 ise ilk elemanı döndürüyoruz
+          if (randomIndex == 0) return population[0];
+          //tournament dizisine random index e göre seçilen elemanı ekliyoruz
+          tournament.push(population[randomIndex]);
+        }
+        //tournament dizisindeki elemanları distance matrisine göre sıralıyoruz ve en kısa rotayı döndürüyoruz
+        return tournament.sort(
+          (a, b) =>
+            calculateDistance(a, distance) - calculateDistance(b, distance)
+        )[0];
+      }
+      //harita üzerinde yapılan bütün çizimleri ve marker ları kaldımamızı sağlar
+      function clearRoute() {
+        map.eachLayer(function (layer) {
+          //polyline ları kaldırmak için
+          if (layer instanceof L.Polyline) {
+            map.removeLayer(layer);
+          }
+          //circle marker ları kaldırmak için
+          if (layer instanceof L.CircleMarker) {
+            map.removeLayer(layer);
+          }
+        });
+        //marker ları sıfırlamak için
+        markers = [];
+
+        //html deki tabloları sıfırlamak için
+        document.querySelector(".kordinat").innerHTML = "";
+        document.querySelector(".matris").innerHTML = "";
+        document.querySelector(".newRoute").innerHTML = "";
+        selection();
+      }
+    </script>
+  </body>
+</html>
